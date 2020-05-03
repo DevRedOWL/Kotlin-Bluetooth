@@ -21,7 +21,6 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
 
-
 internal class WebWorker(private val callback: (res: String) -> Unit) : AsyncTask<Any?, Void?, String>() {
     enum class RequestType {
         POST, GET, PUT, DELETE
@@ -30,44 +29,68 @@ internal class WebWorker(private val callback: (res: String) -> Unit) : AsyncTas
     private val exception: Exception? = null
 
     public override fun doInBackground(vararg params: Any?): String? {
-        if(!(params[0] is RequestType && params[1] is String && params[2] is Map<*, *>))
+        if (!(params[0] is RequestType && params[1] is String && params[2] is Map<*, *>))
             return "Error, params is not valid";
 
-        var reqParam = "";
-        for ((k, v) in params[2] as Map<*, *>) {
-            reqParam +="${if(reqParam.isEmpty()) "" else "&"}${URLEncoder.encode(k as String, "UTF-8")}=${URLEncoder.encode(v as String, "UTF-8")}"
-        }
-        // Трайкачить
-        val mURL = URL(params[1] as String)
+        var reqParam: String = ""
+        val mURL: URL
 
-        with(mURL.openConnection() as HttpURLConnection) {
-            // optional default is GET
-            requestMethod = "POST"
-
-            val wr = OutputStreamWriter(getOutputStream());
-            wr.write(reqParam);
-            wr.flush();
-
-            println("URL : $url")
-            println("Response Code : $responseCode")
-
-            BufferedReader(InputStreamReader(inputStream)).use {
-                val response = StringBuffer()
-
-                var inputLine = it.readLine()
-                while (inputLine != null) {
-                    response.append(inputLine)
-                    inputLine = it.readLine()
+        when (params[0] as RequestType) {
+            RequestType.GET -> {
+                for ((k, v) in params[2] as Map<*, *>) {
+                    reqParam += "${if (reqParam.isEmpty()) "?" else "&"}${URLEncoder.encode(k as String, "UTF-8")}=${URLEncoder.encode(v as String, "UTF-8")}"
                 }
-                println("Response : $response")
-                return response.toString()
+                mURL = URL((params[1] as String) + reqParam)
             }
+            RequestType.POST -> {
+                for ((k, v) in params[2] as Map<*, *>) {
+                    reqParam += "${if (reqParam.isEmpty()) "" else "&"}${URLEncoder.encode(k as String, "UTF-8")}=${URLEncoder.encode(v as String, "UTF-8")}"
+                }
+                mURL = URL(params[1] as String)
+            }
+            RequestType.DELETE -> {
+                return "Not implemented"
+            }
+            RequestType.PUT -> {
+                return "Not implemented"
+            }
+            else -> {
+                return "Request type error"
+            }
+        }
+
+        try {
+            with(mURL.openConnection() as HttpURLConnection) {
+                // optional default is GET
+                requestMethod = "POST"
+
+                val wr = OutputStreamWriter(getOutputStream());
+                wr.write(reqParam);
+                wr.flush();
+
+                //println("URL : $url")
+                //println("Response Code : $responseCode")
+
+                BufferedReader(InputStreamReader(inputStream)).use {
+                    val response = StringBuffer()
+
+                    var inputLine = it.readLine()
+                    while (inputLine != null) {
+                        response.append(inputLine)
+                        inputLine = it.readLine()
+                    }
+                    println("Response : $response")
+                    return response.toString()
+                }
+            }
+        } catch (Ex: java.lang.Exception) {
+            return Ex.message;
         }
     }
 
     override fun onPostExecute(response: String) {
         // TODO: check this.exception
-        // TODO: do something with the feed\
+        // TODO: do something with the feed
         // private val context: Context
         callback(response)
     }
@@ -108,10 +131,12 @@ class SelectDeviceActivity : AppCompatActivity() {
                     // Делаем то, что нам было необходимо с UI потоком, аргумент делегата - result
                     Toast.makeText(this, result.toString(), Toast.LENGTH_LONG).show()
                 }))
-            }.execute(
-                    WebWorker.RequestType.POST,
-                    "http://deliveryhugs.ru",
-                    mapOf("method" to "getApplicationData", "id" to "kotlinApp")) // Передаем в воркер параметры
+            }.execute( // Вызов асинхронной задачи
+                    WebWorker.RequestType.POST, // Тип запроса
+                    "http://deliveryhugs.ru", // Хост
+                    mapOf("method" to "getApplicationData", // Параметры запроса
+                            "id" to "kotlinApp",
+                            "param3" to "paramData"))
         }
     }
 
